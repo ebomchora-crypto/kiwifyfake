@@ -134,7 +134,7 @@ function renderShell(activeHref) {
             <button type="button">${ICONS.logout}Sair</button>
             <div class="menu-sep"></div>
             <div class="menu-section">Mockup</div>
-            <button type="button" id="menu-edit-values">${ICONS.pencil}Editar valores</button>
+            <button type="button" id="menu-edit-values">${ICONS.pencil}Configurar valores<kbd>Ctrl ⇧ 8</kbd></button>
             <button type="button" id="menu-edit-account">${ICONS.cog}Editar conta / meta</button>
             <button type="button" id="menu-reset">${ICONS.trash}Resetar dados</button>
           </div>
@@ -170,17 +170,7 @@ function renderShell(activeHref) {
         <h3>Suas premiações</h3>
         <table class="awards">
           <thead><tr><th>Data</th><th>Premiação</th><th>Status</th><th>Rastreio</th></tr></thead>
-          <tbody>
-            ${AWARDS.map((a) => {
-              const won = account.goalCurrent >= a.value;
-              return `<tr>
-                <td>---</td>
-                <td><span class="award">${a.icon}${a.label}</span></td>
-                <td><span class="pill ${won ? "green" : "gray"}">${won ? "Conquistado" : "Não conquistado"}</span></td>
-                <td>---</td>
-              </tr>`;
-            }).join("")}
-          </tbody>
+          <tbody id="awards-body"></tbody>
         </table>
       </div>
     </div>
@@ -236,11 +226,23 @@ function renderShell(activeHref) {
   scrim.addEventListener("click", closeOverlays);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeOverlays(); });
 
-  document.getElementById("goal-btn").addEventListener("click", () => openModal("awards-modal"));
+  document.getElementById("goal-btn").addEventListener("click", () => {
+    const { goalCurrent } = Store.get().account;
+    document.getElementById("awards-body").innerHTML = AWARDS.map((a) => {
+      const won = goalCurrent >= a.value;
+      return `<tr>
+        <td>---</td>
+        <td><span class="award">${a.icon}${a.label}</span></td>
+        <td><span class="pill ${won ? "green" : "gray"}">${won ? "Conquistado" : "Não conquistado"}</span></td>
+        <td>---</td>
+      </tr>`;
+    }).join("");
+    openModal("awards-modal");
+  });
 
   document.getElementById("menu-edit-values").addEventListener("click", () => {
     userMenu.classList.remove("open");
-    if (typeof openValuesModal === "function") openValuesModal();
+    if (typeof openConfig === "function") openConfig();
     else location.href = "index.html#editar";
   });
 
@@ -305,6 +307,19 @@ function wireModal(id) {
   });
 }
 
+function refreshGoal() {
+  const { goal, goalCurrent } = Store.get().account;
+  document.querySelector(".goal-label").textContent = `R$ ${formatGoal(goalCurrent)} / R$ ${formatGoal(goal)}`;
+  document.querySelector(".goal-fill").style.width = `${Math.min(100, (goalCurrent / goal) * 100 || 0)}%`;
+}
+
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") document.querySelectorAll(".modal-overlay.open").forEach((m) => m.classList.remove("open"));
+
+  // Ctrl+8 sozinho costuma ser capturado pelo Chrome (troca para a 8ª aba); Ctrl+Shift+8 chega à página.
+  if ((e.ctrlKey || e.metaKey) && (e.code === "Digit8" || e.code === "Numpad8")) {
+    e.preventDefault();
+    if (typeof toggleConfig === "function") toggleConfig();
+    else location.href = "index.html#editar";
+  }
 });

@@ -49,6 +49,7 @@ function bindFilter(id, key) {
   document.getElementById(id).addEventListener("change", (e) => {
     Store.update((s) => { s.dashboard[key] = e.target.value; });
     renderDashboard();
+    if (key === "period" && document.body.classList.contains("config-open")) fillConfig();
   });
 }
 
@@ -143,7 +144,8 @@ function bindChartHover(period, points) {
     dot.style.left = left;
     dot.style.top = `${(py / CHART_H) * 100}%`;
     tip.style.left = left;
-    tip.textContent = `${pointLabel(period, i, series.length)} · ${formatBRL(series[i])}`;
+    tip.classList.toggle("flip", px / CHART_W > 0.6);
+    tip.innerHTML = `<span>${pointLabel(period, i, series.length)}</span><strong>${formatBRL(series[i])}</strong>`;
     hover.classList.add("active");
   };
 
@@ -161,17 +163,20 @@ function periodRange(period) {
     case "Últimos 30 dias": return [day(-29), today];
     case "Este mês": return [new Date(today.getFullYear(), today.getMonth(), 1), today];
     case "Mês passado": return [new Date(today.getFullYear(), today.getMonth() - 1, 1), new Date(today.getFullYear(), today.getMonth(), 0)];
-    case "Máximo": return [new Date(today.getFullYear() - 1, today.getMonth(), today.getDate()), today];
+    case "Tempo todo": return [new Date(today.getFullYear() - 1, 0, 1), today];
     default: return [today, today];
   }
 }
 
 const fmtDay = (dt) => dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+const MONTHS = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+const fmtMonth = (dt) => `${MONTHS[dt.getMonth()]} ${dt.getFullYear()}`;
 
 function axisLabels(period) {
   if (period === "Hoje" || period === "Ontem") return [`${period}, 0:00`, `${period}, 23:59`];
   const [start, end] = periodRange(period);
-  return [period === "Máximo" ? "Início" : fmtDay(start), fmtDay(end)];
+  const fmt = period === "Tempo todo" ? fmtMonth : fmtDay;
+  return [fmt(start), fmt(end)];
 }
 
 function pointLabel(period, i, n) {
@@ -181,10 +186,11 @@ function pointLabel(period, i, n) {
     return `${period}, ${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, "0")}`;
   }
   const [start, end] = periodRange(period);
-  return fmtDay(new Date(start.getTime() + t * (end - start)));
+  const fmt = period === "Tempo todo" ? fmtMonth : fmtDay;
+  return fmt(new Date(start.getTime() + t * (end - start)));
 }
 
-// ---------- Modal de edição dos valores (por período) ----------
+// ---------- Painel "Configurar valores" (Ctrl+Shift+8) ----------
 
 const VALUE_FIELDS = [
   ["valorLiquido", "Valor líquido (R$)", "0.01"],
@@ -198,81 +204,136 @@ const VALUE_FIELDS = [
   ["boletosGerados", "Boletos gerados", "1"],
 ];
 
-function injectValuesModal() {
+function injectConfigPanel() {
   document.body.insertAdjacentHTML("beforeend", `
-    <div class="modal-overlay" id="values-modal">
-      <div class="modal sm">
-        <div class="modal-head">
-          <h2>Editar valores</h2>
-          <button class="modal-x" data-close>${ICONS.x}</button>
+    <aside class="drawer config" id="config-panel" aria-label="Configurar valores">
+      <div class="drawer-head">
+        <div>
+          <h2>Configurar valores</h2>
+          <small>Atalho: Ctrl + Shift + 8 · salva automaticamente</small>
         </div>
-        <form id="values-form">
-          <div class="form-grid">
-            <div class="field span2">
-              <label>Período</label>
-              <select name="period">${PERIODS.map((p) => `<option>${p}</option>`).join("")}</select>
-              <small>Cada período guarda seus próprios valores; trocar o filtro no Dashboard mostra os valores dele.</small>
-            </div>
-            ${VALUE_FIELDS.map(([name, label, step]) => `
-              <div class="field"><label>${label}</label><input type="number" step="${step}" name="${name}" /></div>
-            `).join("")}
-            <div class="field span2">
-              <label>Pontos do gráfico</label>
-              <input type="text" name="chartPoints" placeholder="0, 120, 80, 300, 450" />
-              <small>Separados por vírgula, da esquerda para a direita. Use ponto para decimais (ex.: 120.50).</small>
-            </div>
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn btn-white" data-close>Cancelar</button>
-            <button type="submit" class="btn btn-primary">Salvar</button>
-          </div>
-        </form>
+        <button class="modal-x" id="config-close" aria-label="Fechar">${ICONS.x}</button>
       </div>
-    </div>
+      <form class="drawer-body" id="config-form" autocomplete="off">
+        <section>
+          <h3>Período</h3>
+          <div class="field">
+            <select name="period">${PERIODS.map((p) => `<option>${p}</option>`).join("")}</select>
+            <small>Cada período guarda os próprios valores.</small>
+          </div>
+        </section>
+
+        <section>
+          <h3>Métricas</h3>
+          <div class="form-grid">
+            ${VALUE_FIELDS.map(([name, label, step]) => `
+              <div class="field"><label>${label}</label><input type="number" step="${step}" name="${name}" inputmode="decimal" /></div>
+            `).join("")}
+          </div>
+        </section>
+
+        <section>
+          <h3>Gráfico</h3>
+          <div class="field">
+            <label>Pontos (da esquerda para a direita)</label>
+            <input type="text" name="chartPoints" placeholder="0, 120, 80, 300, 450" />
+            <small>Separados por vírgula. Use ponto para decimais (ex.: 120.50).</small>
+          </div>
+        </section>
+
+        <section>
+          <h3>Meta (barra do topo)</h3>
+          <div class="form-grid">
+            <div class="field"><label>Faturamento atual (R$)</label><input type="number" step="0.01" name="goalCurrent" /></div>
+            <div class="field"><label>Meta (R$)</label><input type="number" step="1" min="1" name="goal" /></div>
+          </div>
+        </section>
+
+        <div class="drawer-actions">
+          <button type="button" class="btn btn-white" id="config-clear">Zerar este período</button>
+          <button type="button" class="btn btn-primary" id="config-done">Concluir</button>
+        </div>
+      </form>
+    </aside>
   `);
 
-  wireModal("values-modal");
+  const panel = document.getElementById("config-panel");
+  const form = document.getElementById("config-form");
+  const f = form.elements;
 
-  const form = document.getElementById("values-form");
-  form.elements.period.addEventListener("change", (e) => fillValuesForm(e.target.value));
-
-  form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const fd = new FormData(form);
-    const period = fd.get("period");
-    Store.update((s) => {
-      const entry = {};
-      VALUE_FIELDS.forEach(([name]) => { entry[name] = Number(fd.get(name)) || 0; });
-      entry.chartPoints = String(fd.get("chartPoints"))
-        .split(/[,;\s]+/)
-        .filter(Boolean)
-        .map((v) => Number(v) || 0);
-      s.dashboard.byPeriod[period] = entry;
-      s.dashboard.period = period;
-    });
-    closeModal("values-modal");
+  form.addEventListener("submit", (e) => e.preventDefault());
+  f.period.addEventListener("change", () => {
+    Store.update((s) => { s.dashboard.period = f.period.value; });
+    fillConfig();
     renderDashboard();
   });
+
+  form.addEventListener("input", (e) => {
+    if (e.target.name === "period") return;
+    saveConfig();
+  });
+
+  document.getElementById("config-clear").addEventListener("click", () => {
+    Store.update((s) => { delete s.dashboard.byPeriod[f.period.value]; });
+    fillConfig();
+    renderDashboard();
+  });
+
+  document.getElementById("config-close").addEventListener("click", closeConfig);
+  document.getElementById("config-done").addEventListener("click", closeConfig);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && panel.classList.contains("open")) closeConfig(); });
 }
 
-function fillValuesForm(period) {
-  const form = document.getElementById("values-form");
-  const m = metricsFor(Store.get().dashboard, period);
-  form.elements.period.value = period;
-  VALUE_FIELDS.forEach(([name]) => { form.elements[name].value = m[name]; });
-  form.elements.chartPoints.value = m.chartPoints.join(", ");
+function parsePoints(text) {
+  return String(text).split(/[,;\s]+/).filter(Boolean).map((v) => Number(v) || 0);
 }
 
-function openValuesModal() {
-  fillValuesForm(Store.get().dashboard.period);
-  openModal("values-modal");
+function saveConfig() {
+  const f = document.getElementById("config-form").elements;
+  Store.update((s) => {
+    const entry = { chartPoints: parsePoints(f.chartPoints.value) };
+    VALUE_FIELDS.forEach(([name]) => { entry[name] = Number(f[name].value) || 0; });
+    s.dashboard.byPeriod[f.period.value] = entry;
+    s.account.goalCurrent = Number(f.goalCurrent.value) || 0;
+    s.account.goal = Number(f.goal.value) > 0 ? Number(f.goal.value) : s.account.goal;
+  });
+  renderDashboard();
+  refreshGoal();
+}
+
+function fillConfig() {
+  const { dashboard, account } = Store.get();
+  const f = document.getElementById("config-form").elements;
+  const m = metricsFor(dashboard);
+  f.period.value = dashboard.period;
+  VALUE_FIELDS.forEach(([name]) => { f[name].value = m[name]; });
+  f.chartPoints.value = m.chartPoints.join(", ");
+  f.goalCurrent.value = account.goalCurrent;
+  f.goal.value = account.goal;
+}
+
+function openConfig() {
+  fillConfig();
+  document.getElementById("config-panel").classList.add("open");
+  document.body.classList.add("config-open");
+  setTimeout(() => document.getElementById("config-form").elements.valorLiquido.focus(), 50);
+}
+
+function closeConfig() {
+  document.getElementById("config-panel").classList.remove("open");
+  document.body.classList.remove("config-open");
+}
+
+function toggleConfig() {
+  if (document.getElementById("config-panel").classList.contains("open")) closeConfig();
+  else openConfig();
 }
 
 renderShell("index.html");
-injectValuesModal();
+injectConfigPanel();
 renderDashboard();
 
 if (location.hash === "#editar") {
   history.replaceState(null, "", location.pathname);
-  openValuesModal();
+  openConfig();
 }

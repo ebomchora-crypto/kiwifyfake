@@ -3,7 +3,7 @@
 const STORAGE_KEY = "kiwifyfake_state_v2";
 const OLD_DEFAULT_NAME = "Minha Loja Demo";
 
-const PERIODS = ["Hoje", "Ontem", "Últimos 7 dias", "Últimos 30 dias", "Este mês", "Mês passado", "Máximo"];
+const PERIODS = ["Hoje", "Ontem", "Últimos 7 dias", "Últimos 30 dias", "Este mês", "Mês passado", "Tempo todo"];
 
 const METRIC_KEYS = [
   "valorLiquido", "vendas", "aprovacaoCartao", "vendas1Click", "vendas1ClickPct",
@@ -49,6 +49,11 @@ function migrate(parsed) {
   if (account.name === OLD_DEFAULT_NAME) account.name = DEFAULT_STATE.account.name;
 
   const d = parsed.dashboard || {};
+  if (d.period === "Máximo") d.period = "Tempo todo";
+  if (d.byPeriod && d.byPeriod["Máximo"] && !d.byPeriod["Tempo todo"]) {
+    d.byPeriod["Tempo todo"] = d.byPeriod["Máximo"];
+    delete d.byPeriod["Máximo"];
+  }
   const dashboard = {
     period: PERIODS.includes(d.period) ? d.period : "Hoje",
     product: d.product || DEFAULT_STATE.dashboard.product,
