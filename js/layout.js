@@ -35,6 +35,10 @@ const ICONS = {
   gift: O("M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"),
   search: S("M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"),
   dotsV: `<svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/></svg>`,
+  check: S("M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"),
+  plus: O("M12 4v16m8-8H4"),
+  menu: O("M4 6h16M4 12h16M4 18h16"),
+  inbox: O("M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"),
   chat: `<svg viewBox="0 0 24 24" fill="#fff"><path d="M12 3C6.5 3 2 6.8 2 11.5c0 2.3 1.1 4.4 2.9 5.9-.2 1.4-.9 2.7-1.9 3.6 2 .1 3.9-.6 5.3-1.8 1.2.4 2.4.6 3.7.6 5.5 0 10-3.8 10-8.5S17.5 3 12 3z"/></svg>`,
 };
 
@@ -55,19 +59,24 @@ const AWARDS = [
   { label: "R$ 25M", value: 25000000, icon: GEM("#111827", "#374151") },
 ];
 
+// Páginas secundárias, renderizadas por pagina.html?p=<slug>.
+const PAGES = {
+  "area-de-membros": { label: "Área de Membros", icon: "academic", empty: "Você ainda não criou nenhuma área de membros.", cta: "Criar área de membros" },
+  "marketplace": { label: "Marketplace", icon: "cart", empty: "Nenhum produto disponível para afiliação no momento." },
+  "afiliados": { label: "Meus Afiliados", icon: "user", empty: "Você ainda não tem afiliados." },
+  "vendas": { label: "Vendas", icon: "trending", empty: "Nenhuma venda encontrada para o período selecionado.", chevron: true },
+  "assinaturas": { label: "Assinaturas", icon: "refresh", empty: "Nenhuma assinatura ativa." },
+  "financeiro": { label: "Financeiro", icon: "card", empty: "Nenhuma movimentação financeira." },
+  "relatorios": { label: "Relatórios", icon: "chartBar", empty: "Nenhum relatório gerado ainda.", cta: "Gerar relatório" },
+  "colaboradores": { label: "Colaboradores", icon: "userGroup", empty: "Você ainda não adicionou colaboradores.", cta: "Adicionar colaborador" },
+  "apps": { label: "Apps", icon: "cube", empty: "Nenhuma integração conectada.", cta: "Explorar apps" },
+  "ajuda": { label: "Ajuda", icon: "question", empty: "Precisa de ajuda? Use o chat no canto da tela." },
+};
+
 const NAV_ITEMS = [
   { href: "index.html", label: "Dashboard", icon: "home" },
   { href: "produtos.html", label: "Produtos", icon: "tag" },
-  { href: "#", label: "Área de Membros", icon: "academic" },
-  { href: "#", label: "Marketplace", icon: "cart" },
-  { href: "#", label: "Meus Afiliados", icon: "user" },
-  { href: "#", label: "Vendas", icon: "trending", chevron: true },
-  { href: "#", label: "Assinaturas", icon: "refresh" },
-  { href: "#", label: "Financeiro", icon: "card" },
-  { href: "#", label: "Relatórios", icon: "chartBar" },
-  { href: "#", label: "Colaboradores", icon: "userGroup" },
-  { href: "#", label: "Apps", icon: "cube" },
-  { href: "#", label: "Ajuda", icon: "question" },
+  ...Object.entries(PAGES).map(([slug, p]) => ({ href: `pagina.html?p=${slug}`, label: p.label, icon: p.icon, chevron: p.chevron })),
 ];
 
 const AVATAR_SVG = `<svg viewBox="0 0 40 40"><rect width="40" height="40" fill="#e5e7eb"/><circle cx="20" cy="15" r="7" fill="#c4c9d0"/><path d="M5 38c2-8 8-12 15-12s13 4 15 12z" fill="#c4c9d0"/></svg>`;
@@ -77,11 +86,21 @@ function renderShell(activeHref) {
   const pct = Math.min(100, (account.goalCurrent / account.goal) * 100 || 0);
 
   document.body.insertAdjacentHTML("afterbegin", `
-    <aside class="sidebar">
-      <div class="sidebar-brand">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand" id="brand-btn" title="${escapeHtml(account.name)}">
         <div class="brand-logo">${BRAND_MARK}</div>
         <div class="brand-name">${escapeHtml(account.name)}</div>
         <span class="brand-chev">${ICONS.chevDown}</span>
+      </div>
+      <div class="account-menu" id="account-menu">
+        <div class="menu-section">Suas contas</div>
+        <button type="button" class="account-row current">
+          <span class="account-logo">${BRAND_MARK}</span>
+          <span class="account-text"><strong>${escapeHtml(account.name)}</strong><small>Produtor</small></span>
+          <span class="account-check">${ICONS.check}</span>
+        </button>
+        <div class="menu-sep"></div>
+        <button type="button" class="account-add">${ICONS.plus}Criar nova conta</button>
       </div>
       <nav>
         ${NAV_ITEMS.map((item) => `
@@ -95,6 +114,9 @@ function renderShell(activeHref) {
 
     <div class="main">
       <header class="topbar">
+        <button class="menu-toggle" id="menu-toggle" aria-label="Abrir menu">${ICONS.menu}</button>
+        <span class="topbar-name">${escapeHtml(account.name)}</span>
+        <div class="topbar-spacer"></div>
         <div class="goal" id="goal-btn" title="Premiações">
           <span class="goal-gem">${GEM("#16a34a", "#4ade80")}</span>
           <div class="goal-info">
@@ -106,7 +128,7 @@ function renderShell(activeHref) {
           <button class="avatar" id="avatar-btn" aria-label="Menu do usuário">${AVATAR_SVG}</button>
           <div class="user-menu" id="user-menu">
             <div class="menu-email">${escapeHtml(account.email)}</div>
-            <button type="button">${ICONS.bell}Notificações</button>
+            <button type="button" id="menu-notifications">${ICONS.bell}Notificações</button>
             <button type="button">${ICONS.switch}Mudar para painel do aluno</button>
             <button type="button">${ICONS.userOutline}Meu perfil</button>
             <button type="button">${ICONS.logout}Sair</button>
@@ -123,6 +145,18 @@ function renderShell(activeHref) {
 
     <button class="chat-fab" aria-label="Chat">${ICONS.chat}</button>
     <div class="demo-badge">mockup de estudo · dados fictícios</div>
+    <div class="scrim" id="scrim"></div>
+
+    <aside class="drawer" id="notifications">
+      <div class="drawer-head">
+        <h2>Notificações</h2>
+        <button class="modal-x" id="notifications-close" aria-label="Fechar">${ICONS.x}</button>
+      </div>
+      <div class="empty">
+        <span class="empty-icon">${ICONS.bell}</span>
+        <p>Você não tem notificações.</p>
+      </div>
+    </aside>
 
     <div class="modal-overlay" id="awards-modal">
       <div class="modal">
@@ -177,12 +211,30 @@ function renderShell(activeHref) {
   wireModal("account-modal");
 
   const userMenu = document.getElementById("user-menu");
-  document.getElementById("avatar-btn").addEventListener("click", (e) => {
-    e.stopPropagation();
-    userMenu.classList.toggle("open");
+  const accountMenu = document.getElementById("account-menu");
+  bindDropdown(document.getElementById("avatar-btn"), userMenu);
+  bindDropdown(document.getElementById("brand-btn"), accountMenu);
+
+  const sidebar = document.getElementById("sidebar");
+  const drawer = document.getElementById("notifications");
+  const scrim = document.getElementById("scrim");
+  const closeOverlays = () => {
+    sidebar.classList.remove("open");
+    drawer.classList.remove("open");
+    scrim.classList.remove("open");
+  };
+  document.getElementById("menu-toggle").addEventListener("click", () => {
+    sidebar.classList.add("open");
+    scrim.classList.add("open");
   });
-  userMenu.addEventListener("click", (e) => e.stopPropagation());
-  document.addEventListener("click", () => userMenu.classList.remove("open"));
+  document.getElementById("menu-notifications").addEventListener("click", () => {
+    userMenu.classList.remove("open");
+    drawer.classList.add("open");
+    scrim.classList.add("open");
+  });
+  document.getElementById("notifications-close").addEventListener("click", closeOverlays);
+  scrim.addEventListener("click", closeOverlays);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeOverlays(); });
 
   document.getElementById("goal-btn").addEventListener("click", () => openModal("awards-modal"));
 
@@ -222,6 +274,21 @@ function renderShell(activeHref) {
     location.reload();
   });
 }
+
+const dropdowns = [];
+
+function bindDropdown(trigger, menu) {
+  dropdowns.push(menu);
+  trigger.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const willOpen = !menu.classList.contains("open");
+    dropdowns.forEach((m) => m.classList.remove("open"));
+    menu.classList.toggle("open", willOpen);
+  });
+  menu.addEventListener("click", (e) => e.stopPropagation());
+}
+
+document.addEventListener("click", () => dropdowns.forEach((m) => m.classList.remove("open")));
 
 function openModal(id) {
   document.getElementById(id).classList.add("open");

@@ -1,10 +1,31 @@
 // Mockup de estudo de UI: todos os dados ficam só no localStorage deste navegador.
 
 const STORAGE_KEY = "kiwifyfake_state_v2";
+const OLD_DEFAULT_NAME = "Minha Loja Demo";
+
+const PERIODS = ["Hoje", "Ontem", "Últimos 7 dias", "Últimos 30 dias", "Este mês", "Mês passado", "Máximo"];
+
+const METRIC_KEYS = [
+  "valorLiquido", "vendas", "aprovacaoCartao", "vendas1Click", "vendas1ClickPct",
+  "reembolso", "conversaoBoleto", "chargeback", "boletosGerados",
+];
+
+const EMPTY_METRICS = {
+  valorLiquido: 0,
+  vendas: 0,
+  aprovacaoCartao: 0,
+  vendas1Click: 0,
+  vendas1ClickPct: 0,
+  reembolso: 0,
+  conversaoBoleto: 0,
+  chargeback: 0,
+  boletosGerados: 0,
+  chartPoints: [],
+};
 
 const DEFAULT_STATE = {
   account: {
-    name: "Minha Loja Demo",
+    name: "Arthur Filipe Farias Costa Aquino",
     email: "demo@exemplo.com",
     goal: 10000,
     goalCurrent: 100,
@@ -13,16 +34,7 @@ const DEFAULT_STATE = {
     period: "Hoje",
     product: "Todos os produtos",
     currency: "Todas as moedas",
-    valorLiquido: 0,
-    vendas: 0,
-    aprovacaoCartao: 0,
-    vendas1Click: 0,
-    vendas1ClickPct: 0,
-    reembolso: 0,
-    conversaoBoleto: 0,
-    chargeback: 0,
-    boletosGerados: 0,
-    chartPoints: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    byPeriod: {},
   },
   products: [
     { id: "p1", name: "AprovaAI — Método de Preparação para Concursos", price: 37.9, status: "Ativo" },
@@ -32,16 +44,36 @@ const DEFAULT_STATE = {
   ],
 };
 
+function migrate(parsed) {
+  const account = { ...DEFAULT_STATE.account, ...(parsed.account || {}) };
+  if (account.name === OLD_DEFAULT_NAME) account.name = DEFAULT_STATE.account.name;
+
+  const d = parsed.dashboard || {};
+  const dashboard = {
+    period: PERIODS.includes(d.period) ? d.period : "Hoje",
+    product: d.product || DEFAULT_STATE.dashboard.product,
+    currency: d.currency || DEFAULT_STATE.dashboard.currency,
+    byPeriod: d.byPeriod && typeof d.byPeriod === "object" ? d.byPeriod : {},
+  };
+
+  // Versão anterior guardava um único conjunto de métricas, sem separar por período.
+  if (!d.byPeriod && METRIC_KEYS.some((k) => k in d)) {
+    const flat = { chartPoints: Array.isArray(d.chartPoints) ? d.chartPoints : [] };
+    METRIC_KEYS.forEach((k) => { flat[k] = Number(d[k]) || 0; });
+    dashboard.byPeriod[dashboard.period] = flat;
+  }
+
+  return {
+    account,
+    dashboard,
+    products: Array.isArray(parsed.products) ? parsed.products : structuredClone(DEFAULT_STATE.products),
+  };
+}
+
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return structuredClone(DEFAULT_STATE);
-    const parsed = JSON.parse(raw);
-    return {
-      account: { ...DEFAULT_STATE.account, ...(parsed.account || {}) },
-      dashboard: { ...DEFAULT_STATE.dashboard, ...(parsed.dashboard || {}) },
-      products: Array.isArray(parsed.products) ? parsed.products : structuredClone(DEFAULT_STATE.products),
-    };
+    return raw ? migrate(JSON.parse(raw)) : structuredClone(DEFAULT_STATE);
   } catch (e) {
     return structuredClone(DEFAULT_STATE);
   }
@@ -66,6 +98,10 @@ const Store = {
     return loadState();
   },
 };
+
+function metricsFor(dashboard, period = dashboard.period) {
+  return { ...EMPTY_METRICS, ...(dashboard.byPeriod[period] || {}) };
+}
 
 function formatBRL(value) {
   return (Number(value) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
