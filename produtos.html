@@ -3,44 +3,12 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Produtos — Kiwify (mockup)</title>
+<title>Produtos (mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-
-<div class="modal-overlay" id="product-modal">
-  <div class="modal">
-    <button class="modal-close" data-close-product>✕</button>
-    <h2 id="product-modal-title">Novo produto</h2>
-    <p class="modal-sub">Preencha como quiser — fica salvo só no seu navegador.</p>
-    <form id="product-form">
-      <input type="hidden" name="id" />
-      <div class="form-grid full">
-        <div class="field">
-          <label>Nome do produto</label>
-          <input type="text" name="name" required />
-        </div>
-        <div class="field">
-          <label>Preço (R$)</label>
-          <input type="number" step="0.01" name="price" required />
-        </div>
-        <div class="field">
-          <label>Status</label>
-          <select name="status">
-            <option>Ativo</option>
-            <option>Bloqueado</option>
-            <option>Rascunho</option>
-          </select>
-        </div>
-      </div>
-      <div class="modal-actions">
-        <button type="button" class="btn btn-ghost" data-close-product>Cancelar</button>
-        <button type="submit" class="btn btn-primary">Salvar produto</button>
-      </div>
-    </form>
-  </div>
-</div>
-
 <script src="js/store.js"></script>
 <script src="js/layout.js"></script>
 <script src="js/produtos.js"></script>

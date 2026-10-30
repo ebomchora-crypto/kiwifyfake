@@ -1,186 +1,199 @@
-renderShell("index.html");
-renderDashboardPage();
-wireDashboardModal();
-wireAccountModal();
+const PERIODS = ["Hoje", "Ontem", "Últimos 7 dias", "Últimos 30 dias", "Este mês", "Mês passado", "Máximo"];
+const CURRENCIES = ["Todas as moedas", "BRL", "USD", "EUR"];
 
-function renderDashboardPage() {
-  const s = Store.get().dashboard;
+function renderDashboard() {
+  const { dashboard: d, products } = Store.get();
   const root = document.getElementById("page-root");
+  const productOptions = ["Todos os produtos", ...products.map((p) => p.name)];
 
   root.innerHTML = `
     <div class="page-head">
       <h1>Dashboard</h1>
-      <select id="period-select">
-        <option>Hoje</option>
-        <option>Ontem</option>
-        <option>7 dias</option>
-        <option>30 dias</option>
-        <option>Este mês</option>
-      </select>
-      <select><option>Todos os produtos</option></select>
-      <select><option>Todas as moedas</option></select>
+      ${selectHtml("f-period", "w-sm", PERIODS, d.period)}
+      ${selectHtml("f-product", "w-md", productOptions, d.product)}
+      ${selectHtml("f-currency", "w-sm", CURRENCIES, d.currency)}
     </div>
 
-    <div class="grid">
-      <div class="card chart-card">
-        <div class="chart-top-value">R$ ${maxChartLabel(s.chartPoints)}</div>
-        <div class="chart-wrap">${renderChartSvg(s.chartPoints)}</div>
-        <div class="chart-axis">
-          <span>${escapeHtml(s.period)}, 0:00</span>
-          <span>${escapeHtml(s.period)}, 23:59</span>
-        </div>
+    <div class="dash">
+      <div class="dash-col">
+        <div class="card chart-card">${chartHtml(d)}</div>
+        ${stat(ICONS.card, "Aprovação cartão", formatPct(d.aprovacaoCartao))}
+        ${stat(ICONS.refund, "Reembolso", formatPct(d.reembolso))}
+        ${stat(ICONS.ban, "Chargeback", formatPct(d.chargeback))}
       </div>
-
-      ${metricCard("wallet", "Valor líquido", formatBRL(s.valorLiquido))}
-      ${metricCard("card", "Aprovação cartão", formatPct(s.aprovacaoCartao))}
-      ${metricCard("refresh", "Reembolso", formatPct(s.reembolso))}
-      ${metricCard("ban", "Chargeback", formatPct(s.chargeback))}
-
-      ${metricCard("trend", "Vendas", String(s.vendas))}
-      ${metricCard("globe", "Vendas 1-click da rede Kiwify", formatBRL(s.vendas1Click), "0 %")}
-      ${metricCard("percent", "Conversão boleto", formatPct(s.conversaoBoleto))}
-      ${metricCard("hash", "Boletos gerados", String(s.boletosGerados))}
+      <div class="dash-col">
+        ${stat(ICONS.dollar, "Valor líquido", formatBRL(d.valorLiquido))}
+        ${stat(ICONS.trendOutline, "Vendas", (Number(d.vendas) || 0).toLocaleString("pt-BR"))}
+        ${stat(ICONS.globe, `Vendas 1-click da rede Kiwify <span class="help" title="Vendas feitas com 1 clique por compradores que já têm dados salvos na rede.">${ICONS.question}</span>`,
+          formatBRL(d.vendas1Click), formatPct(d.vendas1ClickPct), true)}
+        ${stat(ICONS.tax, "Conversão boleto", formatPct(d.conversaoBoleto))}
+        ${stat(ICONS.hash, "Boletos gerados", (Number(d.boletosGerados) || 0).toLocaleString("pt-BR"))}
+      </div>
     </div>
   `;
 
-  document.getElementById("period-select").value = s.period;
-  document.getElementById("period-select").addEventListener("change", (e) => {
-    Store.update((state) => { state.dashboard.period = e.target.value; });
-    renderDashboardPage();
+  bindFilter("f-period", "period");
+  bindFilter("f-product", "product");
+  bindFilter("f-currency", "currency");
+}
+
+function selectHtml(id, width, options, current) {
+  return `<select class="select ${width}" id="${id}">
+    ${options.map((o) => `<option ${o === current ? "selected" : ""}>${escapeHtml(o)}</option>`).join("")}
+  </select>`;
+}
+
+function bindFilter(id, key) {
+  document.getElementById(id).addEventListener("change", (e) => {
+    Store.update((s) => { s.dashboard[key] = e.target.value; });
+    renderDashboard();
   });
 }
 
-function metricCard(icon, label, value, sub) {
+function stat(icon, label, value, sub, tall) {
   return `
-    <div class="card metric-card">
-      <div class="metric-icon">${ICONS[icon]}</div>
+    <div class="card stat ${tall ? "tall" : ""}">
+      <span class="stat-icon">${icon}</span>
       <div>
-        <div class="metric-label">${label}</div>
-        <div class="metric-value">${value}${sub ? `<span class="metric-sub">${sub}</span>` : ""}</div>
+        <div class="stat-label">${label}</div>
+        <div class="stat-value">${value}${sub !== undefined ? `<span class="stat-sub">${sub}</span>` : ""}</div>
       </div>
-    </div>
-  `;
+    </div>`;
 }
 
-function maxChartLabel(points) {
-  const max = Math.max(0, ...points.map(Number));
-  return max.toLocaleString("pt-BR");
-}
+// ---------- Gráfico ----------
 
-function renderChartSvg(points) {
-  const nums = points.map(Number);
-  const w = 560, h = 180, pad = 8;
-  const max = Math.max(1, ...nums);
-  const min = Math.min(0, ...nums);
-  const range = max - min || 1;
-  const step = (w - pad * 2) / (nums.length - 1 || 1);
+function chartHtml(d) {
+  const pts = (d.chartPoints || []).map((v) => Number(v) || 0);
+  const series = pts.length >= 2 ? pts : [pts[0] || 0, pts[0] || 0];
+  const max = Math.max(0, ...series);
+  const [startLabel, endLabel] = axisLabels(d.period);
 
-  const coords = nums.map((v, i) => {
-    const x = pad + i * step;
-    const y = h - pad - ((v - min) / range) * (h - pad * 2);
-    return [x, y];
-  });
+  // "Hoje" só desenha até a hora atual, como no original.
+  const now = new Date();
+  const elapsed = d.period === "Hoje" ? Math.max(0.05, (now.getHours() * 60 + now.getMinutes()) / 1440) : 1;
 
-  const linePath = coords.map((c, i) => (i === 0 ? `M${c[0]},${c[1]}` : `L${c[0]},${c[1]}`)).join(" ");
-  const areaPath = `${linePath} L${coords[coords.length - 1][0]},${h - pad} L${coords[0][0]},${h - pad} Z`;
+  const W = 1000, H = 100;
+  const span = W * elapsed;
+  const y = (v) => (max > 0 ? H - (v / max) * H : H);
+  const coords = series.map((v, i) => [(i / (series.length - 1)) * span, y(v)]);
+  const line = coords.map(([cx, cy], i) => `${i ? "L" : "M"}${cx.toFixed(1)},${cy.toFixed(1)}`).join(" ");
+  const [lx, ly] = coords[coords.length - 1];
+
+  const tail = elapsed < 1 ? `
+    <path d="M${lx},${ly} L${Math.min(W, lx + 30)},${ly}" stroke="#5850ec" stroke-width="2.5" stroke-dasharray="2 5" fill="none" vector-effect="non-scaling-stroke"/>
+    <path d="M${Math.min(W, lx + 34)},${H} L${W},${H}" stroke="#eef0f3" stroke-width="2" fill="none" vector-effect="non-scaling-stroke"/>` : "";
 
   return `
-    <svg viewBox="0 0 ${w} ${h}" width="100%" height="100%" preserveAspectRatio="none">
-      <defs>
-        <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#5b3df0" stop-opacity="0.18"/>
-          <stop offset="100%" stop-color="#5b3df0" stop-opacity="0"/>
-        </linearGradient>
-      </defs>
-      <path d="${areaPath}" fill="url(#chartFill)" stroke="none"/>
-      <path d="${linePath}" fill="none" stroke="#5b3df0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
+    <div class="chart-body">
+      <div class="chart-plot">
+        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+          <path d="${line}" stroke="#5850ec" stroke-width="2.5" fill="none" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+          ${tail}
+        </svg>
+      </div>
+      <div class="chart-y">
+        <span>R$ ${max.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}</span>
+        <span>R$ 0</span>
+      </div>
+    </div>
+    <div class="chart-x"><span>${startLabel}</span><span>${endLabel}</span></div>
   `;
 }
 
-function wireDashboardModal() {
-  const overlay = document.getElementById("dashboard-modal");
-  const form = document.getElementById("dashboard-form");
-  const pointsWrap = document.getElementById("chart-points-fields");
+function axisLabels(period) {
+  const today = new Date();
+  const fmt = (dt) => dt.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" });
+  const addDays = (n) => { const x = new Date(today); x.setDate(x.getDate() + n); return x; };
 
-  document.getElementById("open-edit").addEventListener("click", () => {
-    const s = Store.get().dashboard;
-    form.period.value = s.period;
-    form.valorLiquido.value = s.valorLiquido;
-    form.vendas.value = s.vendas;
-    form.aprovacaoCartao.value = s.aprovacaoCartao;
-    form.vendas1Click.value = s.vendas1Click;
-    form.reembolso.value = s.reembolso;
-    form.conversaoBoleto.value = s.conversaoBoleto;
-    form.chargeback.value = s.chargeback;
-    form.boletosGerados.value = s.boletosGerados;
+  switch (period) {
+    case "Hoje": return ["Hoje, 0:00", "Hoje, 23:59"];
+    case "Ontem": return ["Ontem, 0:00", "Ontem, 23:59"];
+    case "Últimos 7 dias": return [fmt(addDays(-6)), fmt(today)];
+    case "Últimos 30 dias": return [fmt(addDays(-29)), fmt(today)];
+    case "Este mês": return [fmt(new Date(today.getFullYear(), today.getMonth(), 1)), fmt(today)];
+    case "Mês passado": return [
+      fmt(new Date(today.getFullYear(), today.getMonth() - 1, 1)),
+      fmt(new Date(today.getFullYear(), today.getMonth(), 0)),
+    ];
+    default: return ["Início", fmt(today)];
+  }
+}
 
-    pointsWrap.innerHTML = s.chartPoints.map((v, i) =>
-      `<input type="number" step="0.01" data-point-idx="${i}" value="${v}" />`
-    ).join("");
+// ---------- Modal de edição dos valores ----------
 
-    overlay.classList.add("open");
-  });
+const VALUE_FIELDS = [
+  ["valorLiquido", "Valor líquido (R$)", "0.01"],
+  ["vendas", "Vendas (quantidade)", "1"],
+  ["aprovacaoCartao", "Aprovação cartão (%)", "0.01"],
+  ["reembolso", "Reembolso (%)", "0.01"],
+  ["chargeback", "Chargeback (%)", "0.01"],
+  ["vendas1Click", "Vendas 1-click (R$)", "0.01"],
+  ["vendas1ClickPct", "Vendas 1-click (%)", "0.01"],
+  ["conversaoBoleto", "Conversão boleto (%)", "0.01"],
+  ["boletosGerados", "Boletos gerados", "1"],
+];
 
-  overlay.querySelectorAll("[data-close]").forEach(btn =>
-    btn.addEventListener("click", () => overlay.classList.remove("open"))
-  );
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.classList.remove("open"); });
+function injectValuesModal() {
+  document.body.insertAdjacentHTML("beforeend", `
+    <div class="modal-overlay" id="values-modal">
+      <div class="modal sm">
+        <div class="modal-head">
+          <h2>Editar valores</h2>
+          <button class="modal-x" data-close>${ICONS.x}</button>
+        </div>
+        <form id="values-form">
+          <div class="form-grid">
+            ${VALUE_FIELDS.map(([name, label, step]) => `
+              <div class="field"><label>${label}</label><input type="number" step="${step}" name="${name}" /></div>
+            `).join("")}
+            <div class="field span2">
+              <label>Pontos do gráfico</label>
+              <input type="text" name="chartPoints" placeholder="0, 120, 80, 300, 450" />
+              <small>Valores separados por vírgula, da esquerda para a direita.</small>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-white" data-close>Cancelar</button>
+            <button type="submit" class="btn btn-primary">Salvar</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `);
 
+  wireModal("values-modal");
+
+  const form = document.getElementById("values-form");
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     const fd = new FormData(form);
-    const points = Array.from(pointsWrap.querySelectorAll("input")).map(i => Number(i.value) || 0);
-
-    Store.update((state) => {
-      state.dashboard = {
-        period: fd.get("period") || "Hoje",
-        valorLiquido: Number(fd.get("valorLiquido")) || 0,
-        vendas: Number(fd.get("vendas")) || 0,
-        aprovacaoCartao: Number(fd.get("aprovacaoCartao")) || 0,
-        vendas1Click: Number(fd.get("vendas1Click")) || 0,
-        reembolso: Number(fd.get("reembolso")) || 0,
-        conversaoBoleto: Number(fd.get("conversaoBoleto")) || 0,
-        chargeback: Number(fd.get("chargeback")) || 0,
-        boletosGerados: Number(fd.get("boletosGerados")) || 0,
-        chartPoints: points,
-      };
+    Store.update((s) => {
+      VALUE_FIELDS.forEach(([name]) => { s.dashboard[name] = Number(fd.get(name)) || 0; });
+      const pts = String(fd.get("chartPoints"))
+        .split(/[,;\s]+/)
+        .filter(Boolean)
+        .map((v) => Number(v.replace(",", ".")) || 0);
+      s.dashboard.chartPoints = pts.length ? pts : [0, 0];
     });
-
-    overlay.classList.remove("open");
-    renderDashboardPage();
+    closeModal("values-modal");
+    renderDashboard();
   });
 }
 
-function wireAccountModal() {
-  const overlay = document.getElementById("account-modal");
-  const form = document.getElementById("account-form");
+function openValuesModal() {
+  const d = Store.get().dashboard;
+  const form = document.getElementById("values-form");
+  VALUE_FIELDS.forEach(([name]) => { form[name].value = d[name]; });
+  form.chartPoints.value = d.chartPoints.join(", ");
+  openModal("values-modal");
+}
 
-  overlay.querySelectorAll("[data-close-account]").forEach(btn =>
-    btn.addEventListener("click", () => overlay.classList.remove("open"))
-  );
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.classList.remove("open"); });
+renderShell("index.html");
+injectValuesModal();
+renderDashboard();
 
-  form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const fd = new FormData(form);
-    Store.update((state) => {
-      state.account.name = fd.get("name") || state.account.name;
-      state.account.email = fd.get("email") || state.account.email;
-      state.account.goal = Number(fd.get("goal")) || state.account.goal;
-      state.account.goalCurrent = Number(fd.get("goalCurrent")) || 0;
-    });
-    overlay.classList.remove("open");
-    location.reload();
-  });
-
-  window.openAccountModal = () => {
-    const a = Store.get().account;
-    form.name.value = a.name;
-    form.email.value = a.email;
-    form.goal.value = a.goal;
-    form.goalCurrent.value = a.goalCurrent;
-    document.getElementById("user-menu").classList.remove("open");
-    overlay.classList.add("open");
-  };
+if (location.hash === "#editar") {
+  history.replaceState(null, "", location.pathname);
+  openValuesModal();
 }
