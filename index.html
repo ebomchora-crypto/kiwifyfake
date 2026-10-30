@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Dashboard — Kiwify (mockup)</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div class="modal-overlay" id="dashboard-modal">
+  <div class="modal">
+    <button class="modal-close" data-close>✕</button>
+    <h2>Editar valores do Dashboard</h2>
+    <p class="modal-sub">Esses números são só para preencher a tela — defina o que quiser.</p>
+    <form id="dashboard-form">
+      <div class="form-grid">
+        <div class="field">
+          <label>Rótulo do período</label>
+          <input type="text" name="period" />
+        </div>
+        <div class="field">
+          <label>Valor líquido (R$)</label>
+          <input type="number" step="0.01" name="valorLiquido" />
+        </div>
+        <div class="field">
+          <label>Vendas (quantidade)</label>
+          <input type="number" step="1" name="vendas" />
+        </div>
+        <div class="field">
+          <label>Aprovação cartão (%)</label>
+          <input type="number" step="0.1" name="aprovacaoCartao" />
+        </div>
+        <div class="field">
+          <label>Vendas 1-click (R$)</label>
+          <input type="number" step="0.01" name="vendas1Click" />
+        </div>
+        <div class="field">
+          <label>Reembolso (%)</label>
+          <input type="number" step="0.1" name="reembolso" />
+        </div>
+        <div class="field">
+          <label>Conversão boleto (%)</label>
+          <input type="number" step="0.1" name="conversaoBoleto" />
+        </div>
+        <div class="field">
+          <label>Chargeback (%)</label>
+          <input type="number" step="0.1" name="chargeback" />
+        </div>
+        <div class="field">
+          <label>Boletos gerados</label>
+          <input type="number" step="1" name="boletosGerados" />
+        </div>
+      </div>
+
+      <div class="field" style="margin-top:14px;">
+        <label>Pontos do gráfico (7 valores, da esquerda p/ direita)</label>
+        <div class="chart-points-field" id="chart-points-fields"></div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="account-modal">
+  <div class="modal">
+    <button class="modal-close" data-close-account>✕</button>
+    <h2>Editar conta / meta</h2>
+    <p class="modal-sub">Controla o nome mostrado no topo e a barra de progresso da meta.</p>
+    <form id="account-form">
+      <div class="form-grid">
+        <div class="field">
+          <label>Nome da conta</label>
+          <input type="text" name="name" />
+        </div>
+        <div class="field">
+          <label>E-mail (exibido no menu)</label>
+          <input type="text" name="email" />
+        </div>
+        <div class="field">
+          <label>Meta (R$)</label>
+          <input type="number" step="1" name="goal" />
+        </div>
+        <div class="field">
+          <label>Progresso atual (R$)</label>
+          <input type="number" step="1" name="goalCurrent" />
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" data-close-account>Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<button class="fab-edit" id="open-edit">✎ Editar valores</button>
+
+<script src="js/store.js"></script>
+<script src="js/layout.js"></script>
+<script src="js/dashboard.js"></script>
+</body>
+</html>
